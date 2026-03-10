@@ -14,6 +14,10 @@
 NexusAI Support is a multi-agent AI system built for customer support teams. It connects a natural language interface to a live SQLite database and a vector-based policy knowledge base, routing queries automatically to the right agent.
 
 ---
+## Demo
+
+[![NexusAI Support Demo](https://img.youtube.com/vi/YbzOdciY5Jc/0.jpg)](https://www.youtube.com/watch?v=YbzOdciY5Jc)
+```
 
 ## Architecture
 

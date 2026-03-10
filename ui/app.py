@@ -166,6 +166,49 @@ def upload_pdf(file, status_state):
     return msg, c, t, d, status_state
 
 
+def list_kb_docs():
+    """Return a formatted HTML list of all documents in the knowledge base."""
+    try:
+        from core.vector_store import get_vector_store
+        docs = get_vector_store().list_documents()
+        if not docs:
+            return '<span style="font-size:12px;color:#9ca3af">No documents ingested yet.</span>'
+        rows = ""
+        for doc in docs:
+            rows += (
+                f'<div style="font-size:12px;padding:4px 0;border-bottom:1px solid #f3f4f6;">'
+                f'<span style="color:#111827;font-weight:500">{doc["filename"]}</span>'
+                f'<span style="color:#9ca3af;margin-left:6px">{doc["chunk_count"]} chunks · {doc["total_pages"]} pages</span>'
+                f'</div>'
+            )
+        return f'<div style="margin-top:4px">{rows}</div>'
+    except Exception as e:
+        return f'<span style="font-size:12px;color:#dc2626">Error: {e}</span>'
+
+
+def delete_document(doc_name, status_state):
+    """Delete a document from the knowledge base by filename."""
+    name = (doc_name or "").strip()
+    if not name:
+        c, t, d = get_stats()
+        return (
+            '<span class="msg-err">Enter a filename to delete.</span>',
+            list_kb_docs(), c, t, d, status_state
+        )
+    try:
+        from core.vector_store import get_vector_store
+        deleted = get_vector_store().delete_document(name)
+        if deleted > 0:
+            msg = f'<span class="msg-ok">Deleted "{name}" ({deleted} chunks removed).</span>'
+        else:
+            msg = f'<span class="msg-err">"{name}" not found in knowledge base.</span>'
+    except Exception as e:
+        logger.error("delete_document: %s", e)
+        msg = f'<span class="msg-err">Failed: {e}</span>'
+    c, t, d = get_stats()
+    return msg, list_kb_docs(), c, t, d, status_state
+
+
 def export_chat(chat_history):
     if not chat_history:
         return "Nothing to export."
@@ -206,6 +249,18 @@ def build_ui():
                 pdf_upload    = gr.File(label="Upload PDF", file_types=[".pdf"])
                 upload_btn    = gr.Button("Ingest Document", size="sm", variant="secondary")
                 upload_status = gr.HTML()
+
+                gr.Markdown("**Documents**")
+                kb_list = gr.HTML(value="")
+                delete_input = gr.Textbox(
+                    placeholder="Filename to delete...",
+                    show_label=False,
+                    lines=1,
+                    max_lines=1,
+                    container=False,
+                )
+                delete_btn    = gr.Button("Delete Document", size="sm", variant="stop")
+                delete_status = gr.HTML()
 
                 gr.Markdown("**Quick Queries**")
                 chip1 = gr.Button("Customer profile lookup",  size="sm", variant="secondary")
@@ -275,7 +330,13 @@ def build_ui():
         upload_btn.click(
             fn=upload_pdf, inputs=[pdf_upload, status_state],
             outputs=[upload_status, customers_html, tickets_html, docs_html, status_state],
-        )
+        ).then(fn=list_kb_docs, outputs=kb_list)
+
+        delete_btn.click(
+            fn=delete_document,
+            inputs=[delete_input, status_state],
+            outputs=[delete_status, kb_list, customers_html, tickets_html, docs_html, status_state],
+        ).then(fn=lambda: "", outputs=delete_input)
 
         clear_btn.click(
             fn=lambda: ([], '<div class="meta-bar" style="min-height:32px"></div>'),
@@ -283,6 +344,7 @@ def build_ui():
         )
         export_btn.click(fn=export_chat, inputs=[chatbot], outputs=export_status)
         app.load(fn=get_stats, outputs=[customers_html, tickets_html, docs_html])
+        app.load(fn=list_kb_docs, outputs=kb_list)
 
     return app
 
